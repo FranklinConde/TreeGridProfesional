@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns="http://www.tableau.com/xml/extension_manifest" manifest-version="1.0">
+	<worksheet-extension id="com.tuempresa.treegrid" extension-version="1.0.0">
+		<default-locale>es_ES</default-locale>
+		<name>Tree Grid Profesional</name>
+		<description>Tabla jerárquica con configuración</description>
+		<author name="Franklin" email="fgonzalezc@lafise.com" organization="LAFISE" website="https://www.tuweb.com" />
+		<min-api-version>1.11</min-api-version>
+		<source-location>
+			<url>http://localhost:8080/index.html</url>
+		</source-location>
+		<icon></icon>
+		<context-menu>
+			<configure-context-menu-item />
+		</context-menu>
+		<encoding id="niveles">
+			<display-name>Niveles (Jerarquía)</display-name>
+		</encoding>
+		<encoding id="montos">
+			<display-name>Montos (Medidas)</display-name>
+		</encoding>
+		
+	</worksheet-extension>
+</manifest>
