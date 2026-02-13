@@ -3,33 +3,47 @@
     let expandedNodes = new Set(), searchQuery = "", selectedId = null;
     const s = () => tableau.extensions.settings;
 
-    tableau.extensions.initializeAsync({ 'configure': () => {
-        const url = window.location.href.replace('index.html', 'configure.html');
-        tableau.extensions.ui.displayDialogAsync(url, "", { height: 600, width: 400 }).then(p => p === "refresh" && render());
-    }}).then(() => {
+    tableau.extensions.initializeAsync({
+        'configure': () => {
+            const url = window.location.href.replace('index.html', 'configure.html');
+            tableau.extensions.ui.displayDialogAsync(url, "", { height: 600, width: 400 }).then(p => p === "refresh" && render());
+        }
+    }).then(() => {
         const gt = document.getElementById('chkGrandTotal'), st = document.getElementById('chkSubtotals');
         gt.checked = s().get('cfg_gt') !== 'false'; st.checked = s().get('cfg_st') !== 'false';
-        gt.onclick = () => saveOpt('cfg_gt', gt.checked); st.onclick = () => saveOpt('cfg_st', st.checked);
+
+        // EVENTOS DE BOTONES
+        gt.onclick = () => saveOpt('cfg_gt', gt.checked);
+        st.onclick = () => saveOpt('cfg_st', st.checked);
         document.getElementById('txtSearch').oninput = (e) => { searchQuery = e.target.value.toLowerCase(); render(); };
+
+        // --- EL ARREGLO: LISTENER DE DATOS ---
+        const ws = tableau.extensions.worksheetContent.worksheet;
+        ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, () => {
+            console.log("Datos actualizados en Tableau, refrescando extensión...");
+            render();
+        });
+
         render();
     });
 
     const saveOpt = (k, v) => s().set(k, v.toString()) || s().saveAsync().then(render);
 
-    // Solo expandir/contraer
     window.toggle = (id) => { expandedNodes.has(id) ? expandedNodes.delete(id) : expandedNodes.add(id); render(); };
 
-    // Filtrar y resaltar al hacer clic en los números
     window.filterToggle = async (id, field, val) => {
         const ws = tableau.extensions.worksheetContent.worksheet;
-        if (selectedId === id) {
-            await ws.clearFilterAsync(field);
-            selectedId = null;
-        } else {
-            await ws.applyFilterAsync(field, [val], 'replace');
-            selectedId = id;
-        }
-        render();
+        try {
+            if (selectedId === id) {
+                await ws.clearFilterAsync(field);
+                selectedId = null;
+            } else {
+                await ws.applyFilterAsync(field, [val], tableau.FilterUpdateType.Replace);
+                selectedId = id;
+            }
+            // Forzamos el render después de aplicar el filtro
+            render();
+        } catch (e) { console.error("Error al filtrar:", e); }
     };
 
     async function render() {
@@ -42,7 +56,11 @@
             dec: parseInt(s().get('cfg_dec') || '2'), gt: s().get('cfg_gt') !== 'false', st: s().get('cfg_st') !== 'false'
         };
 
-        if (!data || data.data.length === 0) return;
+        if (!data || data.data.length === 0) {
+            document.getElementById('content').innerHTML = "<div style='padding:20px; color:#999;'>Sin datos tras el filtro...</div>";
+            return;
+        }
+
         const dims = data.columns.filter(c => c.dataType === 'string'), meas = data.columns.filter(c => c.dataType !== 'string');
         const root = { name: "Root", children: [], values: {}, id: "root" }, gTots = {};
         meas.forEach(m => gTots[m.fieldName] = 0);
@@ -62,38 +80,34 @@
             });
         });
 
-        let html = `<style>.selected { background-color: #e8f4fd !important; outline: 2px solid #005a9e; }</style>
+        let html = `<style>.selected { background-color: #e8f4fd !important; outline: 1px solid #005a9e; }</style>
             <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
             <thead><tr style="background:${cfg.bg}; color:${cfg.tx}; font-size:${cfg.sh}px;">
             <th style="padding:12px; text-align:left;">Estructura</th>${meas.map(m => `<th style="text-align:right; padding:12px;">${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}</th>`).join('')}
             </tr></thead><tbody>`;
 
         if (cfg.gt) {
-            html += `<tr style="background:#f8f9fa; font-weight:800; border-bottom:2px solid #ddd;">
-                <td style="padding:12px;">📈 TOTAL GENERAL</td>
-                ${meas.map(m => `<td style="text-align:right; padding:12px; color:${gTots[m.fieldName]<0?cfg.neg:cfg.pos}">${gTots[m.fieldName].toLocaleString('en-US',{minimumFractionDigits:cfg.dec})}</td>`).join('')}</tr>`;
+            html += `<tr style="background:#f8f9fa; font-weight:800; border-bottom:2px solid #ddd;"><td style="padding:12px;">📈 TOTAL</td>
+                ${meas.map(m => `<td style="text-align:right; padding:12px; color:${gTots[m.fieldName] < 0 ? cfg.neg : cfg.pos}">${gTots[m.fieldName].toLocaleString('en-US', { minimumFractionDigits: cfg.dec })}</td>`).join('')}</tr>`;
         }
 
         const buildRows = (nodes, depth) => {
             nodes.forEach(n => {
                 const match = searchQuery && n.name.toLowerCase().includes(searchQuery); if (match) expandedNodes.add(n.id);
                 const open = expandedNodes.has(n.id), hasCh = n.children.length > 0, isSel = selectedId === n.id;
-                const icon = depth === 0 ? '🏛️' : (hasCh ? '💼' : '🪙');
-                
-                html += `<tr class="${isSel ? 'selected' : ''}" style="border-bottom:1px solid #eee; background:${depth===0?'#fcfcfc':'#fff'};">
-                    <td style="padding:10px 10px 10px ${depth*20+12}px; cursor:pointer; font-size:${cfg.sl}px;" onclick="window.toggle('${n.id}')">
-                    <span style="font-size:10px; color:#999;">${hasCh?(open?'▼':'►'):''}</span> ${icon} 
-                    <span style="font-weight:${depth===0?700:400}; background:${match?'#fff3cd':''}">${n.name}</span></td>
+
+                html += `<tr class="${isSel ? 'selected' : ''}" style="border-bottom:1px solid #eee; background:${depth === 0 ? '#fcfcfc' : '#fff'};">
+                    <td style="padding:10px 10px 10px ${depth * 20 + 12}px; cursor:pointer; font-size:${cfg.sl}px;" onclick="window.toggle('${n.id}')">
+                    <span style="font-size:10px; color:#999;">${hasCh ? (open ? '▼' : '►') : ''}</span> ${depth === 0 ? '🏛️' : (hasCh ? '💼' : '🪙')} 
+                    <span style="font-weight:${depth === 0 ? 700 : 400}; background:${match ? '#fff3cd' : ''}">${n.name}</span></td>
                     ${meas.map(m => {
-                        const v = n.values[m.fieldName] || 0;
-                        return (cfg.st || !hasCh) ? `<td style="text-align:right; padding:10px; font-size:${cfg.sd}px; color:${v<0?cfg.neg:cfg.pos}; font-weight:600; cursor:cell;" 
-                            onclick="window.filterToggle('${n.id}','${n.field}','${n.name}')">
-                            ${v.toLocaleString('en-US',{minimumFractionDigits:cfg.dec})}</td>` : `<td></td>`;
-                    }).join('')}</tr>`;
+                    const v = n.values[m.fieldName] || 0;
+                    return (cfg.st || !hasCh) ? `<td style="text-align:right; padding:10px; font-size:${cfg.sd}px; color:${v < 0 ? cfg.neg : cfg.pos}; font-weight:600; cursor:cell;" 
+                            onclick="window.filterToggle('${n.id}','${n.field}','${n.name}')">${v.toLocaleString('en-US', { minimumFractionDigits: cfg.dec })}</td>` : `<td></td>`;
+                }).join('')}</tr>`;
                 if (open && hasCh) buildRows(n.children, depth + 1);
             });
         };
-
         buildRows(root.children, 0);
         document.getElementById('content').innerHTML = html + `</tbody></table>`;
     }
