@@ -5,8 +5,11 @@
 
     tableau.extensions.initializeAsync({
         'configure': () => {
-            const url = `${window.location.origin}/configure.html`;
-            tableau.extensions.ui.displayDialogAsync(url, "", { height: 600, width: 400 }).then(p => p === "refresh" && render());
+            // Esta línea genera la URL correcta incluyendo la carpeta de tu repositorio
+            const url = window.location.href.replace('index.html', 'configure.html');
+
+            tableau.extensions.ui.displayDialogAsync(url, "", { height: 600, width: 400 })
+                .then(p => p === "refresh" && render());
         }
     }).then(() => {
         // Sincronización inicial de botones superiores
