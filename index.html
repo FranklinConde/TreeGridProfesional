@@ -6,39 +6,36 @@
     <script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@master/lib/tableau.extensions.1.latest.js"></script>
     <script src="app.js" defer></script>
     <style>
-        body {
+        body, html {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', sans-serif;
+            font: 12px 'Segoe UI', sans-serif;
+            height: 100%;
+            width: 100%;
             overflow: hidden;
-            background: #fff;
+            background: white;
         }
 
         #toolbar {
-            background: #1a2b3c; /* Azul bancario */
-            padding: 10px 15px;
+            background: #1a2b3c;
+            color: #fff;
+            padding: 0 15px;
             display: flex;
-            gap: 20px;
+            gap: 15px;
             align-items: center;
-            color: white;
+            height: 45px;
+            border-bottom: 1px solid #333;
+            box-sizing: border-box;
         }
 
-        .toggle-item {
-            font-size: 11px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        .btn-tool {
+            background: #2c3e50;
+            color: #fff;
+            border: 1px solid #455a64;
+            padding: 4px 8px;
+            font-size: 10px;
             cursor: pointer;
-        }
-
-        #txtSearch {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            width: 250px;
-            font-size: 12px;
-            outline: none;
+            border-radius: 3px;
         }
 
         #content {
@@ -47,11 +44,74 @@
             overflow: auto;
         }
 
+        table {
+            width: 100%;
+            min-width: 100%;
+            table-layout: auto;
+            border-collapse: collapse;
+        }
+
+        /* ENCABEZADO FIJO SIN NINGÚN ICONO EXTRA */
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #1a2b3c; /* Cambia esto si usas otro color en cfg_bg */
+            padding: 12px;
+            border-bottom: 2px solid #111;
+        }
+            /* Esta línea asegura que no existan iconos "fantasma" */
+            thead th::before, thead th::after {
+                content: none !important;
+            }
+
+        th, td {
+            white-space: nowrap;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .selected {
+            background: #e8f4fd !important;
+            outline: 1px solid #005a9e;
+        }
+
         .highlight {
-            background-color: #fff3cd;
+            background: #fff3cd;
             color: #856404;
-            padding: 2px;
-            border-radius: 2px;
+            font-weight: bold;
+        }
+        /* Menú Desplegable de Columnas Mejorado */
+        #colMenu {
+            position: absolute;
+            top: 35px;
+            background: white !important; /* Vital para que no sea transparente */
+            color: #333;
+            border: 1px solid #ccc;
+            padding: 10px;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        #colList label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        #colList input {
+            margin: 0;
+            cursor: pointer;
+        }
+        /* Elimina cualquier icono o contenido generado en las celdas de encabezado */
+        th::before, th::after {
+            content: "" !important;
+            display: none !important;
         }
     </style>
 </head>
@@ -63,8 +123,24 @@
         <div class="toggle-item">
             <input type="checkbox" id="chkSubtotals" checked> Subtotales
         </div>
+
+        <div style="border-left: 1px solid #555; height: 20px; margin: 0 5px;"></div>
+
+        <button class="btn-tool" onclick="window.expandAll(true)">EXPANDIR</button>
+        <button class="btn-tool" onclick="window.expandAll(false)">CERRAR</button>
+
+        <div style="position:relative; display: inline-block;">
+            <button class="btn-tool" onclick="document.getElementById('colMenu').toggleAttribute('hidden')">📋 COLUMNAS</button>
+            <div id="colMenu" hidden>
+                <div style="font-weight:bold; font-size:11px; margin-bottom:10px; border-bottom:1px solid #eee; color:#1a2b3c;">
+                    Seleccionar Medidas
+                </div>
+                <div id="colList"></div>
+            </div>
+        </div>
+
         <div style="flex-grow: 1; text-align: right;">
-            <input type="text" id="txtSearch" placeholder="🔍 Buscar ...">
+            <input type="text" id="txtSearch" placeholder="🔍 Buscar producto...">
         </div>
     </div>
     <div id="content"></div>
