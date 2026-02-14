@@ -72,9 +72,8 @@
         const activeMeas = meas.filter(m => !cfg.hideCols.includes(m.fieldName));
 
         document.getElementById('colList').innerHTML = meas.map(m => `
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                <input type="checkbox" ${!cfg.hideCols.includes(m.fieldName) ? 'checked' : ''} 
-                       onclick="window.toggleCol('${m.fieldName}')"> 
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#333; padding:2px 0;">
+                <input type="checkbox" ${!cfg.hideCols.includes(m.fieldName) ? 'checked' : ''} onclick="window.toggleCol('${m.fieldName}')"> 
                 ${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}
             </label>
         `).join('');
@@ -106,11 +105,15 @@
         if (sortConfig.col) sortRecursive(root.children);
         const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: cfg.dec, maximumFractionDigits: cfg.dec, useGrouping: cfg.sep });
 
-        // ESTILOS INYECTADOS: Aquí añadimos el hover
+        // --- DISEÑO DE TABLA PROFESIONAL ---
         let html = `<style>
-            tr:hover { background-color: #f5f5f5 !important; }
-            .selected:hover { background-color: #d1e9ff !important; }
-            .selected { background-color: #e8f4fd !important; outline: 1px solid #005a9e; }
+            table { width: 100%; border-collapse: collapse; table-layout: auto; border: 1px solid #ccc; font-variant-numeric: tabular-nums; }
+            th { border: 1px solid rgba(255,255,255,0.2); position: sticky; top: 0; z-index: 10; font-weight: 600; }
+            td { border: 1px solid #eee; }
+            tr:nth-child(even) { background-color: #fafafa; }
+            tr:hover { background-color: #f0f4f8 !important; }
+            .selected { background-color: #e8f4fd !important; outline: 2px solid #005a9e; z-index: 5; position: relative; }
+            .selected td { border-color: #005a9e33; }
         </style>
         <table>
             <thead><tr style="background:${cfg.bg}; color:${cfg.tx}; font-size:${cfg.sh}px;">
@@ -119,8 +122,8 @@
             </tr></thead><tbody>`;
 
         if (cfg.gt) {
-            html += `<tr style="background:#f8f9fa; font-weight:800; border-bottom:2px solid #ddd;"><td style="padding:12px;">📈 TOTAL</td>
-                ${activeMeas.map(m => `<td style="text-align:right; padding:12px; color:${gTots[m.fieldName] < 0 ? cfg.neg : cfg.pos}">${fmt(gTots[m.fieldName])}</td>`).join('')}</tr>`;
+            html += `<tr style="background:#f0f2f5; font-weight:800; border-bottom:2px solid #999;"><td style="padding:12px; border-right: 1px solid #ccc;">📈 TOTAL GENERAL</td>
+                ${activeMeas.map(m => `<td style="text-align:right; padding:12px; color:${gTots[m.fieldName] < 0 ? cfg.neg : cfg.pos}; border-right: 1px solid #ccc;">${fmt(gTots[m.fieldName])}</td>`).join('')}</tr>`;
         }
 
         const buildRows = (nodes, depth) => {
@@ -130,14 +133,13 @@
                 const pathStr = JSON.stringify(n.path).replace(/"/g, '&quot;');
                 const icon = cfg.ico ? (depth === 0 ? '🏛️' : (hasCh ? '💼' : '🪙')) : '';
 
-                html += `<tr class="${isSel ? 'selected' : ''}" style="border-bottom:1px solid #eee; background:${depth === 0 ? '#fcfcfc' : '#fff'};">
+                html += `<tr class="${isSel ? 'selected' : ''}" style="font-size:${cfg.sd}px;">
                     <td style="padding:10px 10px 10px ${depth * 20 + 12}px; cursor:pointer; font-size:${cfg.sl}px;" onclick="window.toggle('${n.id}')">
-                    ${icon} 
-                    <span style="font-weight:${depth === 0 ? 700 : 400}; background:${match ? '#fff3cd' : ''}; margin-left: 4px;">${n.name}</span></td>
+                    ${icon} <span style="font-weight:${depth === 0 ? 700 : 400}; background:${match ? '#fff3cd' : ''}; margin-left: 5px;">${n.name}</span></td>
                     ${activeMeas.map(m => {
                     const v = n.values[m.fieldName] || 0;
-                    return (cfg.st || !hasCh) ? `<td style="text-align:right; padding:10px; font-size:${cfg.sd}px; color:${v < 0 ? cfg.neg : cfg.pos}; font-weight:600; cursor:cell;" 
-                            onclick="window.filterToggle('${n.id}', ${pathStr})">${fmt(v)}</td>` : `<td></td>`;
+                    return (cfg.st || !hasCh) ? `<td style="text-align:right; padding:10px; color:${v < 0 ? cfg.neg : cfg.pos}; font-weight:600; cursor:cell;" 
+                            onclick="window.filterToggle('${n.id}', ${pathStr})">${fmt(v)}</td>` : `<td style="background:#fdfdfd;"></td>`;
                 }).join('')}</tr>`;
                 if (open && hasCh) buildRows(n.children, depth + 1);
             });
