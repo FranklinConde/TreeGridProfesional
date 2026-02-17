@@ -1,148 +1,143 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="utf-8">
     <title>Financial Tree Grid Pro</title>
     <script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@master/lib/tableau.extensions.1.latest.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="app.js" defer></script>
     <style>
         body, html {
             margin: 0;
             padding: 0;
-            font: 12px 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             height: 100%;
             width: 100%;
             overflow: hidden;
-            background: white;
-        }
-
-        #toolbar {
-            background: #1a2b3c;
-            color: #fff;
-            padding: 0 15px;
             display: flex;
-            gap: 15px;
-            align-items: center;
-            height: 45px;
-            border-bottom: 1px solid #333;
-            box-sizing: border-box;
+            flex-direction: column;
         }
 
-        .btn-tool {
-            background: #2c3e50;
-            color: #fff;
-            border: 1px solid #455a64;
-            padding: 4px 8px;
-            font-size: 10px;
-            cursor: pointer;
-            border-radius: 3px;
+        /* --- 1. BARRA SUPERIOR (Siempre visible) --- */
+        #topBar {
+            flex: 0 0 auto;
+            padding: 6px 16px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; /* Alinea todo a la derecha */
+            gap: 10px;
+        }
+
+        /* --- 2. BARRA DE OPCIONES (Colapsable) --- */
+        #toolbarOptions {
+            background-color: #fff;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        #toolbarContent {
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap; /* Permite que baje de línea si es muy estrecho */
         }
 
         #content {
-            width: 100%;
-            height: calc(100vh - 45px);
+            flex: 1 1 auto;
             overflow: auto;
+            background: white;
         }
 
-        table {
-            width: 100%;
-            min-width: 100%;
-            table-layout: auto;
-            border-collapse: collapse;
-        }
-
-        /* ENCABEZADO FIJO SIN NINGÚN ICONO EXTRA */
-        thead th {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: #1a2b3c; /* Cambia esto si usas otro color en cfg_bg */
-            padding: 12px;
-            border-bottom: 2px solid #111;
-        }
-            /* Esta línea asegura que no existan iconos "fantasma" */
-            thead th::before, thead th::after {
-                content: none !important;
-            }
-
-        th, td {
-            white-space: nowrap;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .selected {
-            background: #e8f4fd !important;
-            outline: 1px solid #005a9e;
+        /* Estilos visuales */
+        .row-selected {
+            background-color: rgba(13, 110, 253, 0.1) !important;
+            border-left: 4px solid #0d6efd !important;
+            font-weight: bold;
         }
 
         .highlight {
-            background: #fff3cd;
-            color: #856404;
+            background-color: #ffc107;
+            color: #000;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        .grab-icon {
+            cursor: pointer;
+            font-size: 16px;
+            color: #aaa;
+            margin-right: 8px;
             font-weight: bold;
         }
-        /* Menú Desplegable de Columnas Mejorado */
-        #colMenu {
-            position: absolute;
-            top: 35px;
-            background: white !important; /* Vital para que no sea transparente */
-            color: #333;
-            border: 1px solid #ccc;
-            padding: 10px;
-            z-index: 2000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+
+        .grab-selected {
+            color: #0d6efd !important;
+            font-weight: bold;
         }
 
-        #colList label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 11px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            color: #333;
-            white-space: nowrap;
-        }
-
-        #colList input {
-            margin: 0;
-            cursor: pointer;
-        }
-        /* Elimina cualquier icono o contenido generado en las celdas de encabezado */
-        th::before, th::after {
-            content: "" !important;
-            display: none !important;
+        /* Switches */
+        .form-check-input:checked {
+            background-color: #198754 !important;
+            border-color: #198754 !important;
         }
     </style>
 </head>
 <body>
-    <div id="toolbar">
-        <div class="toggle-item">
-            <input type="checkbox" id="chkGrandTotal" checked> Total
-        </div>
-        <div class="toggle-item">
-            <input type="checkbox" id="chkSubtotals" checked> Subtotales
+
+    <div id="topBar">
+        <div style="width: 220px;">
+            <input type="text" id="txtSearch" class="form-control form-control-sm shadow-sm" placeholder="🔍 Buscar..." style="border-radius: 20px;">
         </div>
 
-        <div style="border-left: 1px solid #555; height: 20px; margin: 0 5px;"></div>
+        <button class="btn btn-sm btn-primary shadow-sm rounded-circle d-flex align-items-center justify-content-center"
+                style="width: 32px; height: 32px;"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#toolbarOptions"
+                aria-expanded="true"
+                aria-controls="toolbarOptions"
+                title="Mostrar/Ocultar Filtros">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
+                <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z" />
+            </svg>
+        </button>
+    </div>
 
-        <button class="btn-tool" onclick="window.expandAll(true)">EXPANDIR</button>
-        <button class="btn-tool" onclick="window.expandAll(false)">CERRAR</button>
+    <div class="collapse show" id="toolbarOptions">
+        <div id="toolbarContent">
 
-        <div style="position:relative; display: inline-block;">
-            <button class="btn-tool" onclick="document.getElementById('colMenu').toggleAttribute('hidden')">📋 COLUMNAS</button>
-            <div id="colMenu" hidden>
-                <div style="font-weight:bold; font-size:11px; margin-bottom:10px; border-bottom:1px solid #eee; color:#1a2b3c;">
-                    Seleccionar Medidas
-                </div>
-                <div id="colList"></div>
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="chkGrandTotal">
+                <label class="form-check-label text-nowrap fw-bold" style="font-size: 11px;">TOTAL</label>
+            </div>
+
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="chkSubtotals">
+                <label class="form-check-label text-nowrap fw-bold" style="font-size: 11px;">SUBTOTALES</label>
+            </div>
+
+            <div class="vr h-50 opacity-25" style="background-color: currentColor;"></div>
+
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="chkExpandAll">
+                <label class="form-check-label text-nowrap fw-bold" style="font-size: 11px;">EXPANDIR TODO</label>
+            </div>
+
+            <div class="dropdown ms-auto">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 11px; font-weight: 700;">
+                    COLUMNAS
+                </button>
+                <ul class="dropdown-menu shadow dropdown-menu-end" id="colListDropdown" style="min-width: 220px;">
+                </ul>
             </div>
         </div>
-
-        <div style="flex-grow: 1; text-align: right;">
-            <input type="text" id="txtSearch" placeholder="🔍 Buscar producto...">
-        </div>
     </div>
+
     <div id="content"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
