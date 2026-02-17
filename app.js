@@ -1,85 +1,166 @@
 'use strict';
-(function () {
-    let expandedNodes = new Set(), searchQuery = "", selectedId = null, allIds = new Set();
-    let sortConfig = { col: null, dir: 'desc' };
-    const s = () => tableau.extensions.settings;
 
-    tableau.extensions.initializeAsync({
-        'configure': () => {
-            const url = window.location.href.replace('index.html', 'configure.html');
-            tableau.extensions.ui.displayDialogAsync(url, "", { height: 600, width: 400 }).then(p => p === "refresh" && render());
-        }
-    }).then(() => {
-        const gt = document.getElementById('chkGrandTotal'), st = document.getElementById('chkSubtotals');
-        gt.checked = s().get('cfg_gt') !== 'false'; st.checked = s().get('cfg_st') !== 'false';
-        gt.onclick = () => saveOpt('cfg_gt', gt.checked);
-        st.onclick = () => saveOpt('cfg_st', st.checked);
-        document.getElementById('txtSearch').oninput = (e) => { searchQuery = e.target.value.toLowerCase(); render(); };
-        tableau.extensions.worksheetContent.worksheet.addEventListener(tableau.TableauEventType.SummaryDataChanged, () => render());
-        render();
-    });
+// --- ESTADO GLOBAL ---
+window.swapSourceId = null;
+window.selectedFilterId = null; // Persistencia de selección por filtro
+let expandedNodes = new Set();
+let allIds = new Set();
+let searchQuery = "";
+let sortConfig = { col: null, dir: 'desc' };
 
-    const saveOpt = (k, v) => s().set(k, v.toString()) || s().saveAsync().then(render);
+window.onerror = function (msg) {
+    const div = document.getElementById('content');
+    if (div) div.innerHTML = `<div style="color:red; padding:20px;"><strong>Error de sistema:</strong> ${msg}</div>`;
+    return false;
+};
 
-    window.expandAll = (expand) => {
-        if (expand) expandedNodes = new Set(allIds); else expandedNodes.clear();
-        render();
-    };
+// --- 1. FUNCIONES GLOBALES (Control del Toolbar) ---
+window.expandToggle = (checkbox) => {
+    if (checkbox.checked) expandedNodes = new Set(allIds);
+    else expandedNodes.clear();
+    renderApp();
+};
 
-    window.toggle = (id) => { expandedNodes.has(id) ? expandedNodes.delete(id) : expandedNodes.add(id); render(); };
+window.toggle = (id) => {
+    if (expandedNodes.has(id)) expandedNodes.delete(id);
+    else expandedNodes.add(id);
+    renderApp();
+};
 
-    window.toggleCol = (colName) => {
-        let hidden = JSON.parse(s().get('cfg_hide_cols') || "[]");
-        hidden.includes(colName) ? hidden = hidden.filter(c => c !== colName) : hidden.push(colName);
-        saveOpt('cfg_hide_cols', JSON.stringify(hidden));
-    };
+window.toggleCol = (colName) => {
+    const s = tableau.extensions.settings;
+    let hidden = JSON.parse(s.get('cfg_hide_cols') || "[]");
+    hidden.includes(colName) ? hidden = hidden.filter(c => c !== colName) : hidden.push(colName);
+    s.set('cfg_hide_cols', JSON.stringify(hidden));
+    s.saveAsync().then(renderApp);
+};
 
-    window.applySort = (col) => {
-        sortConfig.dir = (sortConfig.col === col && sortConfig.dir === 'desc') ? 'asc' : 'desc';
-        sortConfig.col = col; render();
-    };
+window.applySort = (col) => {
+    sortConfig.dir = (sortConfig.col === col && sortConfig.dir === 'desc') ? 'asc' : 'desc';
+    sortConfig.col = col;
+    renderApp();
+};
 
-    function sortRecursive(nodes) {
-        nodes.sort((a, b) => {
-            let aV = sortConfig.col === 'name' ? a.name.toLowerCase() : (a.values[sortConfig.col] || 0);
-            let bV = sortConfig.col === 'name' ? b.name.toLowerCase() : (b.values[sortConfig.col] || 0);
-            return sortConfig.dir === 'asc' ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
-        });
-        nodes.forEach(n => { if (n.children.length) sortRecursive(n.children); });
+// FILTRADO CON RESALTADO VISUAL PERSISTENTE
+window.filterToggle = async (id, pathJSON) => {
+    const path = JSON.parse(decodeURIComponent(pathJSON));
+    const ws = tableau.extensions.worksheetContent.worksheet;
+    if (window.selectedFilterId === id) {
+        for (const f of path) await ws.clearFilterAsync(f.field);
+        window.selectedFilterId = null;
+    } else {
+        for (const f of path) await ws.applyFilterAsync(f.field, [f.value], 'replace');
+        window.selectedFilterId = id;
     }
+    renderApp();
+};
 
-    window.filterToggle = async (id, path) => {
-        const ws = tableau.extensions.worksheetContent.worksheet;
-        if (selectedId === id) { for (const f of path) await ws.clearFilterAsync(f.field); selectedId = null; }
-        else { for (const f of path) await ws.applyFilterAsync(f.field, [f.value], 'replace'); selectedId = id; }
-        render();
-    };
+// INTERCAMBIO DINÁMICO (Anula orden por columna para permitir diseño manual)
+window.handleSwapClick = async function (id, name) {
+    const s = tableau.extensions.settings;
+    if (window.swapSourceId === null) {
+        window.swapSourceId = id;
+        renderApp();
+    } else {
+        if (window.swapSourceId === id) { window.swapSourceId = null; renderApp(); return; }
+        const sourceRow = document.querySelector(`tr[data-id="${window.swapSourceId}"]`);
+        if (!sourceRow) { window.swapSourceId = null; renderApp(); return; }
 
-    async function render() {
+        const sourceName = sourceRow.getAttribute('data-name');
+        let currentOrder = JSON.parse(s.get('cfg_custom_order') || "[]");
+        if (currentOrder.length === 0) {
+            currentOrder = Array.from(document.querySelectorAll('tr[data-depth="0"]')).map(tr => tr.getAttribute('data-name'));
+        }
+        const idx1 = currentOrder.indexOf(sourceName);
+        const idx2 = currentOrder.indexOf(name);
+        if (idx1 !== -1 && idx2 !== -1) {
+            [currentOrder[idx1], currentOrder[idx2]] = [currentOrder[idx2], currentOrder[idx1]];
+            s.set('cfg_custom_order', JSON.stringify(currentOrder));
+            sortConfig.col = null; // Prioridad al diseño manual
+            await s.saveAsync();
+        }
+        window.swapSourceId = null;
+        renderApp();
+    }
+};
+
+// --- 2. MOTORES DE APOYO ---
+function tagSearchMatches(node, query) {
+    let isSelfMatch = node.name.toLowerCase().includes(query);
+    let hasChildMatch = false;
+    if (node.children) {
+        node.children.forEach(child => { if (tagSearchMatches(child, query)) hasChildMatch = true; });
+    }
+    node._isMatch = isSelfMatch || hasChildMatch;
+    node._autoExpand = hasChildMatch;
+    return node._isMatch;
+}
+
+function sortRecursive(nodes) {
+    nodes.sort((a, b) => {
+        let aV = sortConfig.col === 'name' ? a.name.toLowerCase() : (a.values[sortConfig.col] || 0);
+        let bV = sortConfig.col === 'name' ? b.name.toLowerCase() : (b.values[sortConfig.col] || 0);
+        return sortConfig.dir === 'asc' ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
+    });
+    nodes.forEach(n => { if (n.children.length) sortRecursive(n.children); });
+}
+
+// --- 3. RENDER ---
+async function renderApp() {
+    const contentDiv = document.getElementById('content');
+    const s = () => tableau.extensions.settings;
+    try {
         const ws = tableau.extensions.worksheetContent.worksheet;
         const data = await ws.getSummaryDataAsync();
+
+        // CONFIGURACIÓN: Totales y Subtotales ON por defecto si no existen
         const cfg = {
-            bg: s().get('cfg_bg') || '#1a2b3c', tx: s().get('cfg_txt') || '#fff',
+            bg: s().get('cfg_bg') || '#1a2b3c', tx: s().get('cfg_txt') || '#ffffff',
             pos: s().get('cfg_pos') || '#27ae60', neg: s().get('cfg_neg') || '#e74c3c',
             sh: s().get('cfg_sz_h') || '14', sl: s().get('cfg_sz_l') || '13', sd: s().get('cfg_sz_d') || '12',
             dec: parseInt(s().get('cfg_dec') || '2'), sep: s().get('cfg_sep') !== 'false',
-            ico: s().get('cfg_icons') !== 'false', gt: s().get('cfg_gt') !== 'false', st: s().get('cfg_st') !== 'false',
+            ico: s().get('cfg_icons') !== 'false', trends: s().get('cfg_trends') !== 'false',
+            trendCols: (s().get('cfg_trend_cols') || "").split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n)),
+            gt: s().get('cfg_gt') !== 'false', st: s().get('cfg_st') !== 'false',
+            ico0: s().get('cfg_ico0') || '➕', ico1: s().get('cfg_ico1') || '➖', ico2: s().get('cfg_ico2') || '🪙',
+            movable: s().get('cfg_movable') !== 'false',
+            customOrder: JSON.parse(s().get('cfg_custom_order') || "[]"),
             hideCols: JSON.parse(s().get('cfg_hide_cols') || "[]")
         };
 
-        if (!data || data.data.length === 0) return;
-        const dims = data.columns.filter(c => c.dataType === 'string'), meas = data.columns.filter(c => c.dataType !== 'string');
+        const tb = document.getElementById('toolbar');
+        if (tb) tb.style.cssText = `background-color:${cfg.bg} !important; color:${cfg.tx} !important; display: flex; align-items: center; padding: 5px 15px; gap: 15px;`;
+
+        document.getElementById('chkGrandTotal').checked = cfg.gt;
+        document.getElementById('chkSubtotals').checked = cfg.st;
+
+        const dims = data.columns.filter(c => c.dataType === 'string');
+        const meas = data.columns.filter(c => c.dataType !== 'string');
         const activeMeas = meas.filter(m => !cfg.hideCols.includes(m.fieldName));
 
-        document.getElementById('colList').innerHTML = meas.map(m => `
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#333; padding:2px 0;">
-                <input type="checkbox" ${!cfg.hideCols.includes(m.fieldName) ? 'checked' : ''} onclick="window.toggleCol('${m.fieldName}')"> 
-                ${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}
-            </label>
-        `).join('');
+        // --- DROPDOWN COLUMNAS (Bootstrap) ---
+        const colDropdown = document.getElementById('colListDropdown');
+        if (colDropdown) {
+            colDropdown.innerHTML = `<li><h6 class="dropdown-header">MEDIDAS</h6></li>` +
+                meas.map(m => {
+                    const isChecked = !cfg.hideCols.includes(m.fieldName);
+                    return `
+                <li onclick="event.stopPropagation()">
+                    <div class="dropdown-item py-1">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="sw_${m.fieldName.replace(/\s+/g, '')}" 
+                                ${isChecked ? 'checked' : ''} onclick="window.toggleCol('${m.fieldName}')">
+                            <label class="form-check-label text-dark" for="sw_${m.fieldName.replace(/\s+/g, '')}" style="font-size:12px; cursor:pointer;">
+                                ${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}
+                            </label>
+                        </div>
+                    </div>
+                </li>`;
+                }).join('');
+        }
 
-        const root = { name: "Root", children: [], values: {}, id: "root", path: [] };
-        let gTots = {}; meas.forEach(m => gTots[m.fieldName] = 0);
+        const root = { name: "Root", children: [], values: {}, id: "root" };
+        let gTots = {}; activeMeas.forEach(m => gTots[m.fieldName] = 0);
         allIds.clear();
 
         data.data.forEach(row => {
@@ -88,12 +169,11 @@
                 const v = row[d.index].formattedValue || "Nulo";
                 let ch = curr.children.find(c => c.name === v);
                 if (!ch) {
-                    const nodePath = [...(curr.path || []), { field: d.fieldName, value: v }];
-                    ch = { name: v, path: nodePath, children: [], values: {}, id: curr.id + "_" + i + "_" + v.replace(/\s+/g, '') };
+                    ch = { name: v, children: [], values: {}, id: curr.id + "_" + v.replace(/\s+/g, ''), path: [...(curr.path || []), { field: d.fieldName, value: v }] };
                     curr.children.push(ch);
                 }
                 allIds.add(ch.id);
-                meas.forEach(m => {
+                activeMeas.forEach(m => {
                     const n = parseFloat(row[m.index].value) || 0;
                     ch.values[m.fieldName] = (ch.values[m.fieldName] || 0) + n;
                     if (i === dims.length - 1) gTots[m.fieldName] += n;
@@ -102,49 +182,89 @@
             });
         });
 
-        if (sortConfig.col) sortRecursive(root.children);
-        const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: cfg.dec, maximumFractionDigits: cfg.dec, useGrouping: cfg.sep });
+        // Aplicar Orden Dual
+        if (sortConfig.col) {
+            sortRecursive(root.children);
+        } else if (cfg.customOrder.length > 0) {
+            root.children.sort((a, b) => (cfg.customOrder.indexOf(a.name) === -1 ? 999 : cfg.customOrder.indexOf(a.name)) - (cfg.customOrder.indexOf(b.name) === -1 ? 999 : cfg.customOrder.indexOf(b.name)));
+        }
 
-        // --- DISEÑO DE TABLA PROFESIONAL ---
+        if (searchQuery) tagSearchMatches(root, searchQuery);
+
+        const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: cfg.dec, maximumFractionDigits: cfg.dec, useGrouping: cfg.sep });
+        const getArrow = (v, i) => (cfg.trends && (cfg.trendCols.length === 0 || cfg.trendCols.includes(i + 1))) ? (v >= 0 ? '▲ ' : '▼ ') : '';
+
         let html = `<style>
-            table { width: 100%; border-collapse: collapse; table-layout: auto; border: 1px solid #ccc; font-variant-numeric: tabular-nums; }
-            th { border: 1px solid rgba(255,255,255,0.2); position: sticky; top: 0; z-index: 10; font-weight: 600; }
-            td { border: 1px solid #eee; }
-            tr:nth-child(even) { background-color: #fafafa; }
-            tr:hover { background-color: #f0f4f8 !important; }
-            .selected { background-color: #e8f4fd !important; outline: 2px solid #005a9e; z-index: 5; position: relative; }
-            .selected td { border-color: #005a9e33; }
+            table { width: 100%; border-collapse: collapse; }
+            thead th { background: ${cfg.bg} !important; color: ${cfg.tx} !important; position: sticky; top: 0; padding: 12px; font-size: ${cfg.sh}px; text-align: right; cursor: pointer; border-bottom: 2px solid rgba(0,0,0,0.1); }
+            td { border-bottom: 1px solid #dee2e6; padding: ${cfg.sl}px 10px; font-size: ${cfg.sd}px; cursor: pointer; }
+            .pos { color: ${cfg.pos} !important; font-weight: 600; text-align: right; }
+            .neg { color: ${cfg.neg} !important; font-weight: 600; text-align: right; }
+            .row-selected { background-color: rgba(13, 110, 253, 0.15) !important; font-weight: bold; border-left: 4px solid #0d6efd; }
+            .highlight { background-color: #ffc107; padding: 0 2px; }
+            .grab-icon { cursor: pointer; font-size: 16px; color: #aaa; margin-right: 8px; font-weight: bold; }
+            .grab-selected { color: #0d6efd !important; font-weight: bold; }
         </style>
-        <table>
-            <thead><tr style="background:${cfg.bg}; color:${cfg.tx}; font-size:${cfg.sh}px;">
-            <th style="padding:12px; text-align:left; cursor:pointer;" onclick="window.applySort('name')">Estructura</th>
-            ${activeMeas.map(m => `<th style="text-align:right; padding:12px; cursor:pointer;" onclick="window.applySort('${m.fieldName}')">${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}</th>`).join('')}
-            </tr></thead><tbody>`;
+        <table><thead><tr><th style="text-align:left;" onclick="window.applySort('name')">Niveles</th>
+        ${activeMeas.map(m => `<th onclick="window.applySort('${m.fieldName}')">${m.fieldName.replace(/SUM|AGG|\(|\)/g, '')}</th>`).join('')}
+        </tr></thead><tbody>`;
 
         if (cfg.gt) {
-            html += `<tr style="background:#f0f2f5; font-weight:800; border-bottom:2px solid #999;"><td style="padding:12px; border-right: 1px solid #ccc;">📈 TOTAL GENERAL</td>
-                ${activeMeas.map(m => `<td style="text-align:right; padding:12px; color:${gTots[m.fieldName] < 0 ? cfg.neg : cfg.pos}; border-right: 1px solid #ccc;">${fmt(gTots[m.fieldName])}</td>`).join('')}</tr>`;
+            html += `<tr style="background:#f8f9fa; font-weight:bold; border-bottom: 2px solid #aaa;"><td>📈 TOTAL GENERAL</td>
+            ${activeMeas.map((m, i) => `<td class="${gTots[m.fieldName] >= 0 ? 'pos' : 'neg'}">${getArrow(gTots[m.fieldName], i)}${fmt(gTots[m.fieldName])}</td>`).join('')}</tr>`;
         }
 
         const buildRows = (nodes, depth) => {
             nodes.forEach(n => {
-                const match = searchQuery && n.name.toLowerCase().includes(searchQuery); if (match) expandedNodes.add(n.id);
-                const open = expandedNodes.has(n.id), hasCh = n.children.length > 0, isSel = selectedId === n.id;
-                const pathStr = JSON.stringify(n.path).replace(/"/g, '&quot;');
-                const icon = cfg.ico ? (depth === 0 ? '🏛️' : (hasCh ? '💼' : '🪙')) : '';
+                if (searchQuery && !n._isMatch) return;
+                const open = expandedNodes.has(n.id) || (searchQuery && n._autoExpand);
+                const hasCh = n.children.length > 0;
+                const isSelected = window.swapSourceId === n.id;
+                const isFiltered = window.selectedFilterId === n.id;
+                const icon = cfg.ico ? (!hasCh ? cfg.ico2 : (open ? cfg.ico1 : cfg.ico0)) : '';
+                const swapBtn = (depth === 0 && cfg.movable) ? `<span class="grab-icon ${isSelected ? 'grab-selected' : ''}" onclick="event.stopPropagation(); window.handleSwapClick('${n.id}', '${n.name}')">⠿</span>` : '';
 
-                html += `<tr class="${isSel ? 'selected' : ''}" style="font-size:${cfg.sd}px;">
-                    <td style="padding:10px 10px 10px ${depth * 20 + 12}px; cursor:pointer; font-size:${cfg.sl}px;" onclick="window.toggle('${n.id}')">
-                    ${icon} <span style="font-weight:${depth === 0 ? 700 : 400}; background:${match ? '#fff3cd' : ''}; margin-left: 5px;">${n.name}</span></td>
-                    ${activeMeas.map(m => {
+                html += `<tr class="${isSelected || isFiltered ? 'row-selected' : ''}" data-id="${n.id}" data-depth="${depth}" data-name="${n.name}">
+                    <td style="padding-left:${depth * 22 + 12}px;" onclick="window.toggle('${n.id}')">
+                        ${swapBtn} ${icon} <span style="font-weight:${depth === 0 ? 700 : 400}">${searchQuery ? n.name.replace(new RegExp(`(${searchQuery})`, 'gi'), '<span class="highlight">$1</span>') : n.name}</span>
+                    </td>
+                    ${activeMeas.map((m, idx) => {
                     const v = n.values[m.fieldName] || 0;
-                    return (cfg.st || !hasCh) ? `<td style="text-align:right; padding:10px; color:${v < 0 ? cfg.neg : cfg.pos}; font-weight:600; cursor:cell;" 
-                            onclick="window.filterToggle('${n.id}', ${pathStr})">${fmt(v)}</td>` : `<td style="background:#fdfdfd;"></td>`;
+                    const showVal = (cfg.st || !hasCh);
+                    const pathStr = encodeURIComponent(JSON.stringify(n.path));
+                    return `<td class="${v >= 0 ? 'pos' : 'neg'}" onclick="window.filterToggle('${n.id}', '${pathStr}')">
+                            ${showVal ? getArrow(v, idx) + fmt(v) : ''}
+                        </td>`;
                 }).join('')}</tr>`;
                 if (open && hasCh) buildRows(n.children, depth + 1);
             });
         };
         buildRows(root.children, 0);
-        document.getElementById('content').innerHTML = html + `</tbody></table>`;
-    }
+        contentDiv.innerHTML = html + "</tbody></table>";
+    } catch (e) { console.error(e); }
+}
+
+// Inicialización
+(function start() {
+    if (typeof tableau === 'undefined') { setTimeout(start, 100); return; }
+    tableau.extensions.initializeAsync({
+        'configure': () => {
+            const url = window.location.href.replace('index.html', 'configure.html');
+            tableau.extensions.ui.displayDialogAsync(url, "", { height: 650, width: 450 }).then(p => p === "refresh" && renderApp());
+        }
+    }).then(() => {
+        renderApp();
+        const searchInput = document.getElementById('txtSearch');
+        if (searchInput) {
+            searchInput.style.width = "220px";
+            searchInput.oninput = (e) => { searchQuery = e.target.value.toLowerCase(); renderApp(); };
+        }
+        document.getElementById('chkGrandTotal').onclick = (e) => { tableau.extensions.settings.set('cfg_gt', e.target.checked.toString()); tableau.extensions.settings.saveAsync().then(renderApp); };
+        document.getElementById('chkSubtotals').onclick = (e) => { tableau.extensions.settings.set('cfg_st', e.target.checked.toString()); tableau.extensions.settings.saveAsync().then(renderApp); };
+
+        const expSwitch = document.getElementById('chkExpandAll');
+        if (expSwitch) expSwitch.onclick = (e) => window.expandToggle(e.target);
+
+        tableau.extensions.worksheetContent.worksheet.addEventListener(tableau.TableauEventType.SummaryDataChanged, renderApp);
+    });
 })();
