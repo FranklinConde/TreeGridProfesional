@@ -48,19 +48,39 @@
         <h5 class="section-title">CONFIGURACIÓN MAESTRA</h5>
 
         <div class="card p-3 shadow-sm">
+
+            <label class="form-label text-dark">Título de la Extensión</label>
+            <input type="text" id="cfg_title" class="form-control mb-3" placeholder="Dejar vacío para usar el nombre de la hoja">
+
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="cfg_movable">
+                <label class="form-check-label fw-bold text-primary" for="cfg_movable">Habilitar Orden Dinámico (⠿)</label>
+            </div>
+
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="cfg_fit_view">
+                <label class="form-check-label fw-bold text-info" for="cfg_fit_view">Ajustar a la Vista (Fit Width)</label>
+            </div>
+
+            <label class="form-label text-danger">Orden Jerarquía (Manual)</label>
+            <input type="text" id="cfg_dim_order" class="form-control mb-3" placeholder="Ej: TipoCliente, BancaSegmento">
+
+            <label class="form-label text-primary">Orden de Columnas (Manual)</label>
+            <input type="text" id="cfg_meas_order" class="form-control mb-2" placeholder="Ej: SaldoME, SaldoML">
+
+            <label class="form-label text-success">Renombrar Columnas (En Orden)</label>
+            <input type="text" id="cfg_meas_rename" class="form-control mb-3" placeholder="Ej: Saldo Ext, , Saldo Prom">
+
+            <label class="form-label text-warning">Columnas Porcentaje (Nombres)</label>
+            <input type="text" id="cfg_pct_cols" class="form-control mb-3" placeholder="Ej: Margen, Crecimiento">
+
             <label class="form-label">Apariencia Toolbar (Fondo / Texto)</label>
             <div class="row g-2 mb-3">
                 <div class="col-6"><input type="color" id="cfg_bg" class="form-control form-control-color"></div>
                 <div class="col-6"><input type="color" id="cfg_txt" class="form-control form-control-color"></div>
             </div>
 
-            <label class="form-label">Alertas Semánticas (Positivo / Negativo)</label>
-            <div class="row g-2 mb-3">
-                <div class="col-6"><input type="color" id="cfg_pos" class="form-control form-control-color"></div>
-                <div class="col-6"><input type="color" id="cfg_neg" class="form-control form-control-color"></div>
-            </div>
-
-            <label class="form-label">Tamaños de Fuente (Cabecera / Línea / Dato)</label>
+            <label class="form-label">Tamaños de Fuente</label>
             <div class="input-group mb-3">
                 <input type="number" id="cfg_sz_h" class="form-control" placeholder="H">
                 <input type="number" id="cfg_sz_l" class="form-control" placeholder="L">
@@ -69,12 +89,14 @@
         </div>
 
         <div class="card p-3 shadow-sm">
-            <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="cfg_movable">
-                <label class="form-check-label fw-bold text-primary" for="cfg_movable">Habilitar Orden Dinámico (⠿)</label>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label class="form-label">Positivo</label><input type="color" id="cfg_pos" class="form-control form-control-color"></div>
+                <div class="col-6"><label class="form-label">Negativo</label><input type="color" id="cfg_neg" class="form-control form-control-color"></div>
             </div>
+            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="cfg_trends"><label class="form-check-label fw-bold text-dark">Tendencias (▲)</label></div>
+            <textarea id="cfg_trend_cols" class="form-control" rows="2" placeholder="Índices Tendencia (Ej: 1, 3)"></textarea>
 
-            <label class="form-label">Iconografía (Cerrado / Abierto / Hoja)</label>
+            <label class="form-label mt-2">Iconografía</label>
             <div class="row g-2 mb-3">
                 <div class="col-4"><input type="text" id="cfg_ico0" class="form-control text-center"></div>
                 <div class="col-4"><input type="text" id="cfg_ico1" class="form-control text-center"></div>
@@ -82,15 +104,18 @@
             </div>
 
             <div class="row g-2 mb-3">
-                <div class="col-12"><label class="form-label">Decimales</label><input type="number" id="cfg_dec" class="form-control" min="0" max="5"></div>
+                <div class="col-6">
+                    <label class="form-label">Dec. (Normal)</label>
+                    <input type="number" id="cfg_dec" class="form-control" min="0" max="5">
+                </div>
+                <div class="col-6">
+                    <label class="form-label">Dec. (Porcentaje)</label>
+                    <input type="number" id="cfg_pct_dec" class="form-control" min="0" max="5">
+                </div>
             </div>
 
             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="cfg_sep"><label class="form-check-label fw-bold text-dark">Separador de miles</label></div>
             <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="cfg_icons"><label class="form-check-label fw-bold text-dark">Iconos Jerarquía</label></div>
-            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="cfg_trends"><label class="form-check-label fw-bold text-dark">Tendencias (▲)</label></div>
-
-            <label class="form-label mt-2">Columnas con Tendencia (Índices)</label>
-            <textarea id="cfg_trend_cols" class="form-control" rows="2" placeholder="Ej: 1, 3"></textarea>
         </div>
 
         <button id="btnSave" class="btn btn-success w-100 fw-bold py-2 shadow-sm">GUARDAR CAMBIOS</button>
@@ -108,15 +133,24 @@
 
             load('cfg_bg', '#1a2b3c'); load('cfg_txt', '#ffffff'); load('cfg_pos', '#27ae60'); load('cfg_neg', '#e74c3c');
             load('cfg_sz_h', '14'); load('cfg_sz_l', '13'); load('cfg_sz_d', '12');
-            load('cfg_dec', '2'); load('cfg_ico0', '➕'); load('cfg_ico1', '➖'); load('cfg_ico2', '🪙');
+            load('cfg_dec', '2');
+            load('cfg_pct_dec', '2');
+            load('cfg_ico0', '➕'); load('cfg_ico1', '➖'); load('cfg_ico2', '🪙');
             load('cfg_sep', '', true); load('cfg_icons', '', true); load('cfg_trends', 'true', true);
             load('cfg_movable', 'true', true); load('cfg_trend_cols', '');
+            load('cfg_fit_view', 'false', true);
+
+            load('cfg_title', ''); // NUEVO
+            load('cfg_dim_order', '');
+            load('cfg_meas_order', '');
+            load('cfg_meas_rename', '');
+            load('cfg_pct_cols', '');
 
             document.getElementById('btnSave').onclick = () => {
-                ['cfg_bg', 'cfg_txt', 'cfg_pos', 'cfg_neg', 'cfg_sz_h', 'cfg_sz_l', 'cfg_sz_d', 'cfg_dec', 'cfg_ico0', 'cfg_ico1', 'cfg_ico2', 'cfg_trend_cols'].forEach(id => {
+                ['cfg_bg', 'cfg_txt', 'cfg_pos', 'cfg_neg', 'cfg_sz_h', 'cfg_sz_l', 'cfg_sz_d', 'cfg_dec', 'cfg_pct_dec', 'cfg_ico0', 'cfg_ico1', 'cfg_ico2', 'cfg_trend_cols', 'cfg_dim_order', 'cfg_meas_order', 'cfg_meas_rename', 'cfg_pct_cols', 'cfg_title'].forEach(id => {
                     s.set(id, document.getElementById(id).value);
                 });
-                ['cfg_sep', 'cfg_icons', 'cfg_trends', 'cfg_movable'].forEach(id => {
+                ['cfg_sep', 'cfg_icons', 'cfg_trends', 'cfg_movable', 'cfg_fit_view'].forEach(id => {
                     s.set(id, document.getElementById(id).checked.toString());
                 });
                 s.saveAsync().then(() => tableau.extensions.ui.closeDialog("refresh"));
