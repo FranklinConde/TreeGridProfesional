@@ -36,10 +36,14 @@ window.toggleCol = (colName) => {
     s.saveAsync().then(renderApp);
 };
 
+// MODIFICADO: Ahora guarda el ordenamiento en la configuración de Tableau
 window.applySort = (col) => {
     sortConfig.dir = (sortConfig.col === col && sortConfig.dir === 'desc') ? 'asc' : 'desc';
     sortConfig.col = col;
-    renderApp();
+    const s = tableau.extensions.settings;
+    s.set('cfg_sort_col', sortConfig.col);
+    s.set('cfg_sort_dir', sortConfig.dir);
+    s.saveAsync().then(renderApp);
 };
 
 window.filterToggle = async (id, pathJSON) => {
@@ -75,7 +79,11 @@ window.handleSwapClick = async function (id, name) {
         if (idx1 !== -1 && idx2 !== -1) {
             [currentOrder[idx1], currentOrder[idx2]] = [currentOrder[idx2], currentOrder[idx1]];
             s.set('cfg_custom_order', JSON.stringify(currentOrder));
+
+            // MODIFICADO: Si reordena manualmente, borra el orden por columna guardado
             sortConfig.col = null;
+            s.set('cfg_sort_col', '');
+
             await s.saveAsync();
         }
         window.swapSourceId = null;
@@ -258,7 +266,6 @@ async function renderApp() {
 
         if (searchQuery) tagSearchMatches(root, searchQuery);
 
-        // MODIFICACIÓN 1: El espacio va antes de la flecha en vez de después, para que quede separado del número
         const getArrow = (v, i) => (cfg.trends && (cfg.trendCols.length === 0 || cfg.trendCols.includes(i + 1))) ? (v >= 0 ? ' ▲' : ' ▼') : '';
 
         // --- SISTEMA GRID CSS DINÁMICO ---
@@ -318,7 +325,6 @@ async function renderApp() {
 
                 const tooltipTitle = `<b>${colName} : ${formattedVal}</b><br/><span style='color:#ccc'>TOTAL GENERAL</span>`;
 
-                // MODIFICACIÓN 2: Valor primero, flecha después.
                 return `<div class="grid-cell grid-cell-meas ${v >= 0 ? 'pos' : 'neg'}">
                             <span class="text-truncate" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" data-bs-container="body" data-bs-custom-class="custom-tooltip" title="${tooltipTitle}">
                                 ${formattedVal}${getArrow(v, i)}
@@ -355,7 +361,6 @@ async function renderApp() {
                         tooltipAttr = `data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" data-bs-container="body" data-bs-custom-class="custom-tooltip" title="${tooltipTitle}"`;
                     }
 
-                    // MODIFICACIÓN 3: Valor primero, flecha después.
                     return `<div class="grid-cell grid-cell-meas ${v >= 0 ? 'pos' : 'neg'}" onclick="window.filterToggle('${n.id}', '${pathStr}')">
                             ${showVal ? `<span class="text-truncate" ${tooltipAttr}>${formattedVal}${getArrow(v, idx)}</span>` : ''}
                         </div>`;
@@ -385,7 +390,39 @@ async function renderApp() {
             tableau.extensions.ui.displayDialogAsync(url, "", { height: 650, width: 450 }).then(p => p === "refresh" && renderApp());
         }
     }).then(() => {
+        const s = tableau.extensions.settings;
+
+        // MODIFICADO: Recuperar el estado de ordenamiento guardado al iniciar
+        const savedSortCol = s.get('cfg_sort_col');
+        if (savedSortCol) {
+            sortConfig.col = savedSortCol;
+            sortConfig.dir = s.get('cfg_sort_dir') || 'desc';
+        }
+
+        // MODIFICADO: Recuperar el estado del Toolbar y modificar el DOM antes de renderizar
+        const isToolbarOpen = s.get('cfg_toolbar_open') !== 'false';
+        const toolbarEl = document.getElementById('toolbarOptions');
+        const btnToggle = document.querySelector('[data-bs-target="#toolbarOptions"]');
+
+        if (!isToolbarOpen && toolbarEl) {
+            toolbarEl.classList.remove('show');
+            if (btnToggle) btnToggle.setAttribute('aria-expanded', 'false');
+        }
+
+        // MODIFICADO: Guardar automáticamente el estado cada vez que se abre/cierra el Toolbar
+        if (toolbarEl) {
+            toolbarEl.addEventListener('hidden.bs.collapse', () => {
+                s.set('cfg_toolbar_open', 'false');
+                s.saveAsync();
+            });
+            toolbarEl.addEventListener('shown.bs.collapse', () => {
+                s.set('cfg_toolbar_open', 'true');
+                s.saveAsync();
+            });
+        }
+
         renderApp();
+
         const searchInput = document.getElementById('txtSearch');
         if (searchInput) {
             searchInput.style.width = "220px";
