@@ -26,11 +26,10 @@
             border-bottom: 1px solid rgba(0,0,0,0.05);
             display: flex;
             align-items: center;
-            justify-content: flex-end; /* Alinea todo a la derecha */
+            justify-content: space-between; /* MODIFICADO: Reparte el espacio entre Título y Buscador */
             gap: 10px;
         }
 
-        /* --- 2. BARRA DE OPCIONES (Colapsable) --- */
         #toolbarOptions {
             background-color: #fff;
             border-bottom: 1px solid rgba(0,0,0,0.1);
@@ -41,20 +40,13 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            flex-wrap: wrap; /* Permite que baje de línea si es muy estrecho */
+            flex-wrap: wrap;
         }
 
         #content {
             flex: 1 1 auto;
             overflow: auto;
             background: white;
-        }
-
-        /* Estilos visuales */
-        .row-selected {
-            background-color: rgba(13, 110, 253, 0.1) !important;
-            border-left: 4px solid #0d6efd !important;
-            font-weight: bold;
         }
 
         .highlight {
@@ -77,33 +69,43 @@
             font-weight: bold;
         }
 
-        /* Switches */
         .form-check-input:checked {
             background-color: #198754 !important;
             border-color: #198754 !important;
+        }
+
+        .custom-tooltip {
+            --bs-tooltip-bg: var(--bs-success);
+            --bs-tooltip-color: var(--bs-white);
         }
     </style>
 </head>
 <body>
 
     <div id="topBar">
-        <div style="width: 220px;">
-            <input type="text" id="txtSearch" class="form-control form-control-sm shadow-sm" placeholder="🔍 Buscar..." style="border-radius: 20px;">
+
+        <div id="appTitle" style="font-weight: 800; font-size: 15px; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: auto;">
         </div>
 
-        <button class="btn btn-sm btn-primary shadow-sm rounded-circle d-flex align-items-center justify-content-center"
-                style="width: 32px; height: 32px;"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#toolbarOptions"
-                aria-expanded="true"
-                aria-controls="toolbarOptions"
-                title="Mostrar/Ocultar Filtros">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
-                <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z" />
-            </svg>
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <div style="width: 220px;">
+                <input type="text" id="txtSearch" class="form-control form-control-sm shadow-sm" placeholder="🔍 Buscar..." style="border-radius: 20px;">
+            </div>
+
+            <button class="btn btn-sm btn-primary shadow-sm rounded-circle d-flex align-items-center justify-content-center"
+                    style="width: 32px; height: 32px;"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#toolbarOptions"
+                    aria-expanded="true"
+                    aria-controls="toolbarOptions"
+                    title="Mostrar/Ocultar Filtros">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
+                    <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z" />
+                </svg>
+            </button>
+        </div>
     </div>
 
     <div class="collapse show" id="toolbarOptions">
